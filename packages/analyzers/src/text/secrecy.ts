@@ -40,7 +40,7 @@ export class SecrecyDetector implements Detector {
         detectorId: this.id,
         indicators: [
           {
-            id: 'ind-secrecy-1',
+            id: `ind-${this.id}-1`,
             category: 'TEXT',
             type: 'TEXT.SECRECY',
             severity: 'MEDIUM',
@@ -50,7 +50,7 @@ export class SecrecyDetector implements Detector {
         ],
         evidence: [
           {
-            id: 'ev-secrecy-1',
+            id: `ev-${this.id}-1`,
             detectorId: this.id,
             type: 'observed_fact',
             category: 'content',

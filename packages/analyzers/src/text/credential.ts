@@ -6,7 +6,7 @@ export class CredentialDetector implements Detector {
   public id = 'text.credential-request';
 
   private patterns = [
-    /\b(?:share|send|provide|enter|confirm|verify)\s*(?:your\s*)?(?:otp|password|pin|cvv|one[\s-]*time[\s-]*password)\b/i,
+    /\b(?:share|send|provide|enter|confirm|verify|reply(?:\s*with)?)\s*(?:your\s*)?(?:otp|password|pin|cvv|one[\s-]*time[\s-]*password)\b/i,
     /\b(?:login|banking)\s*(?:details|credentials)\b/i,
     /\b(?:recovery|security)\s*(?:code|answer)\b/i,
     // Multilingual POC
@@ -40,7 +40,7 @@ export class CredentialDetector implements Detector {
         detectorId: this.id,
         indicators: [
           {
-            id: 'ind-cred-1',
+            id: `ind-${this.id}-1`,
             category: 'TEXT',
             type: 'TEXT.CREDENTIAL_REQUEST',
             severity: 'HIGH',
@@ -50,7 +50,7 @@ export class CredentialDetector implements Detector {
         ],
         evidence: [
           {
-            id: 'ev-cred-1',
+            id: `ev-${this.id}-1`,
             detectorId: this.id,
             type: 'observed_fact',
             category: 'content',

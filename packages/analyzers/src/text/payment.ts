@@ -11,7 +11,7 @@ export class PaymentDetector implements Detector {
     /\b(?:buy|purchase)\s*(?:an?\s*)?(?:apple|amazon|steam|google\s*play)\s*gift\s*card\b/i,
     // Multilingual POC
     /\b(?:paise|rupee|payment)\s*(?:bhejo|transfer\s*karo|do)\b/i,
-    /\b(?:upi|gpay|phonepe|paytm)\s*(?:se|karo)\b/i
+    /\b(?:upi|gpay|phonepe|paytm)\s*(?:se\s*pay\s*karo|me\s*transfer|bhejo)\b/i
   ];
 
   supports(input: AnalysisInput): boolean {
@@ -41,7 +41,7 @@ export class PaymentDetector implements Detector {
         detectorId: this.id,
         indicators: [
           {
-            id: 'ind-payment-1',
+            id: `ind-${this.id}-1`,
             category: 'TEXT',
             type: 'TEXT.PAYMENT_REQUEST',
             severity: 'MEDIUM', // Context matters, invoices are common
@@ -51,7 +51,7 @@ export class PaymentDetector implements Detector {
         ],
         evidence: [
           {
-            id: 'ev-payment-1',
+            id: `ev-${this.id}-1`,
             detectorId: this.id,
             type: 'observed_fact',
             category: 'content',

@@ -159,6 +159,41 @@ describe('Sprint 3: Text Detectors', () => {
     });
   });
 
+  describe('Adversarial & Combination Tests', () => {
+    it('ignores legitimate contexts (Adversarial False Positives)', async () => {
+      const payment = new PaymentDetector();
+      const job = new JobScamDetector();
+      const reward = new RewardDetector();
+      const secrecy = new SecrecyDetector();
+      const threat = new ThreatDetector();
+
+      // "Please pay your electricity bill by Friday."
+      expect((await payment.analyze(createInput('Please pay your electricity bill by Friday.'), context)).evidence?.length || 0).toBe(0);
+      
+      // "HR will contact you regarding your job application."
+      expect((await job.analyze(createInput('HR will contact you regarding your job application.'), context)).evidence?.length || 0).toBe(0);
+      
+      // "Congratulations on completing your course."
+      expect((await reward.analyze(createInput('Congratulations on completing your course.'), context)).evidence?.length || 0).toBe(0);
+      
+      // "Please keep your medical records confidential."
+      expect((await secrecy.analyze(createInput('Please keep your medical records confidential.'), context)).evidence?.length || 0).toBe(0);
+      
+      // "Your account will be temporarily unavailable during maintenance."
+      expect((await threat.analyze(createInput('Your account will be temporarily unavailable during maintenance.'), context)).evidence?.length || 0).toBe(0);
+    });
+
+    it('detects combinations of signals correctly across detectors', async () => {
+      const credential = new CredentialDetector();
+      const urgency = new UrgencyDetector();
+      
+      // Credential + Urgency
+      const comboText = 'Your account will be locked! Please provide your OTP immediately.';
+      expect((await urgency.analyze(createInput(comboText), context)).evidence?.length || 0).toBe(1);
+      expect((await credential.analyze(createInput(comboText), context)).evidence?.length || 0).toBe(1);
+    });
+  });
+
   describe('Privacy & Determinism', () => {
     it('does not leak raw text into metadata', async () => {
       const urgency = new UrgencyDetector();

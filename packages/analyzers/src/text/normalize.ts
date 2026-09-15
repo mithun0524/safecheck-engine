@@ -1,16 +1,20 @@
 /**
  * Safely normalizes text for deterministic pattern matching.
  * - Converts to NFKC to standardize unicode characters.
- * - Removes zero-width characters (e.g. ZWSP).
+ * - Removes specific zero-width characters used for obfuscation:
+ *   - U+200B (Zero Width Space)
+ *   - U+200C (Zero Width Non-Joiner)
+ *   - U+200D (Zero Width Joiner)
+ *   - U+FEFF (Byte Order Mark)
  * - Collapses multiple whitespaces into a single space.
  * - Converts to lowercase.
  */
 export function normalizeText(input: string): string {
   if (!input) return '';
   return input
-    .normalize('NFKC') // Normalize unicode
-    .replace(/[\u200B-\u200D\uFEFF]/g, '') // Remove zero-width characters
-    .replace(/\s+/g, ' ') // Collapse whitespace
+    .normalize('NFKC')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/\s+/g, ' ')
     .toLowerCase()
     .trim();
 }

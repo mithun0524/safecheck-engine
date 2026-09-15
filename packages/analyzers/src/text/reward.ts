@@ -8,7 +8,7 @@ export class RewardDetector implements Detector {
   private patterns = [
     /\b(?:you(?:'ve|\s*have|\s*r)?\s*)(?:won|selected\s*for)\b/i,
     /\b(?:claim|get)\s*(?:your\s*)?(?:reward|prize|refund|bonus|free\s*gift)\b/i,
-    /\b(?:congratulations|lottery|lucky\s*winner)\b/i,
+    /\b(?:congratulations|congrats).{0,20}(?:won|lottery|lucky\s*winner|prize)\b/i,
     // Multilingual POC
     /\b(?:aapk[io]\s*)?(?:lottery\s*lagi|inam\s*jeeta)\b/i,
     /\b(?:muft|free)\s*(?:gift|iphone|paise)\b/i
@@ -41,7 +41,7 @@ export class RewardDetector implements Detector {
         detectorId: this.id,
         indicators: [
           {
-            id: 'ind-reward-1',
+            id: `ind-${this.id}-1`,
             category: 'TEXT',
             type: 'TEXT.REWARD_LURE',
             severity: 'LOW',
@@ -51,7 +51,7 @@ export class RewardDetector implements Detector {
         ],
         evidence: [
           {
-            id: 'ev-reward-1',
+            id: `ev-${this.id}-1`,
             detectorId: this.id,
             type: 'observed_fact',
             category: 'content',

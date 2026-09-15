@@ -44,7 +44,7 @@ export class UrgencyDetector implements Detector {
         detectorId: this.id,
         indicators: [
           {
-            id: 'ind-urgency-1',
+            id: `ind-${this.id}-1`,
             category: 'TEXT',
             type: 'TEXT.URGENCY',
             severity: 'LOW',
@@ -54,7 +54,7 @@ export class UrgencyDetector implements Detector {
         ],
         evidence: [
           {
-            id: 'ev-urgency-1',
+            id: `ev-${this.id}-1`,
             detectorId: this.id,
             type: 'observed_fact',
             category: 'content',

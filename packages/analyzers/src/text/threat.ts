@@ -11,7 +11,8 @@ export class ThreatDetector implements Detector {
     /\b(?:account|card|access)\s*(?:compromised|hacked|breached|at\s*risk)\b/i,
     /\b(?:payment|transaction)\s*(?:failed|declined|rejected)\b/i,
     // Multilingual POC
-    /\b(?:police|fir|jail|fine|jurmana)\b/i,
+    /\b(?:police|fir)\s*(?:complaint|case|arrest)\b/i,
+    /\b(?:jail|jurmana|fine)\s*(?:hoga|lagega)\b/i,
     /\b(?:account\s*block|card\s*block)\b/i
   ];
 
@@ -42,7 +43,7 @@ export class ThreatDetector implements Detector {
         detectorId: this.id,
         indicators: [
           {
-            id: 'ind-threat-1',
+            id: `ind-${this.id}-1`,
             category: 'TEXT',
             type: 'TEXT.THREAT',
             severity: 'MEDIUM',
@@ -52,7 +53,7 @@ export class ThreatDetector implements Detector {
         ],
         evidence: [
           {
-            id: 'ev-threat-1',
+            id: `ev-${this.id}-1`,
             detectorId: this.id,
             type: 'observed_fact',
             category: 'content',
