@@ -1,0 +1,13 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/schemas" },
+    { "path": "packages/analyzers" },
+    { "path": "packages/rules" },
+    { "path": "packages/threat-intel" },
+    { "path": "packages/sdk-js" },
+    { "path": "packages/cli" },
+    { "path": "packages/config" }
+  ]
+}
