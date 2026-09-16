@@ -12,6 +12,7 @@ import { AnalysisContext } from './context.js';
 import { aggregateEvidence } from './aggregation/evidence.js';
 import { aggregateIndicators } from './aggregation/indicators.js';
 import { sanitizeDiagnostics, EngineTimeoutError } from './errors.js';
+import { RiskCalculator } from './risk/calculator.js';
 
 export interface EngineConfig {
   readonly registry: DetectorRegistry;
@@ -104,27 +105,21 @@ export class SafeCheckEngine {
 
       // 7. Construct final Engine-stage response
       const durationMs = Date.now() - startTime;
+      
+      const riskCalculator = new RiskCalculator();
+      const riskCalculation = riskCalculator.calculate({
+        evidence: aggregatedEvidence
+      });
 
       return {
         input: validatedInput,
-        risk: {
-          status: 'INCONCLUSIVE',
-          level: 'INCONCLUSIVE',
-          riskConfidence: 0,
-          evidenceReferences: aggregatedEvidence.map((e) => e.id),
-          explanation: 'Engine-only execution completed without final risk calculation.',
-          reason: 'Risk scoring not implemented in engine stage',
-        },
+        risk: riskCalculation.risk,
         confidence: {
-          overallConfidence: 0, // Cannot be calculated without risk engine
+          overallConfidence: riskCalculation.confidence.score,
         },
         indicators: aggregatedIndicators,
         evidence: aggregatedEvidence,
-        recommendation: {
-          // Explicitly INCONCLUSIVE_VERIFY per strict instructions
-          action: 'INCONCLUSIVE_VERIFY',
-          context: 'Risk analysis algorithm has not yet evaluated the collected evidence.',
-        },
+        recommendation: riskCalculation.recommendation,
         metadata: {
           analysisId,
           schemaVersion: '1.0.0', // This aligns with @safecheck/schemas version implicitly

@@ -25,6 +25,13 @@ importers:
         version: 1.6.1
 
   packages/analyzers:
+    dependencies:
+      '@safecheck/core':
+        specifier: workspace:*
+        version: link:../core
+      '@safecheck/schemas':
+        specifier: workspace:*
+        version: link:../schemas
     devDependencies:
       typescript:
         specifier: ^5.5.0

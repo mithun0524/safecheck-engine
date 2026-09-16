@@ -26,8 +26,8 @@ describe('SafeCheckEngine', () => {
     registry.register(new SuccessDetector());
     const result = await engine.analyze('test-id-1', dummyInput, dummyOptions);
 
-    expect(result.risk.status).toBe('INCONCLUSIVE');
-    expect(result.recommendation.action).toBe('INCONCLUSIVE_VERIFY');
+    expect(result.risk.status).toBe('DETERMINED');
+    expect(result.recommendation.action).toBe('SAFE_TO_PROCEED');
     expect(result.evidence).toHaveLength(1);
     expect(result.evidence[0]!.id).toBe('ev-1');
     expect(result.indicators).toHaveLength(1);
@@ -50,7 +50,7 @@ describe('SafeCheckEngine', () => {
     const result = await engine.analyze('test-id-3', dummyInput, dummyOptions);
     
     // Engine succeeds, returns evidence from the successful detector
-    expect(result.risk.status).toBe('INCONCLUSIVE');
+    expect(result.risk.status).toBe('DETERMINED');
     expect(result.evidence).toHaveLength(1);
   });
 

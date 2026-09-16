@@ -5,3 +5,7 @@ export * from './registry.js';
 export * from './engine.js';
 export * from './aggregation/evidence.js';
 export * from './aggregation/indicators.js';
+export * from './risk/weights.js';
+export * from './risk/correlations.js';
+export * from './risk/recommendation-mapper.js';
+export * from './risk/calculator.js';
