@@ -5,7 +5,8 @@ import {
   AnalysisOptions, 
   Evidence, 
   Indicator,
-  DetectorResultSchema
+  DetectorResultSchema,
+  IndicatorCategory
 } from '@safecheck/schemas';
 import { DetectorRegistry } from './registry.js';
 import { AnalysisContext } from './context.js';
@@ -13,22 +14,29 @@ import { aggregateEvidence } from './aggregation/evidence.js';
 import { aggregateIndicators } from './aggregation/indicators.js';
 import { sanitizeDiagnostics, EngineTimeoutError } from './errors.js';
 import { RiskCalculator } from './risk/calculator.js';
+import { ThreatIntelPort } from './ports/threat-intel.js';
 
 export interface EngineConfig {
   readonly registry: DetectorRegistry;
   readonly engineVersion?: string;
   readonly defaultTimeoutMs?: number;
+  readonly threatIntelProviders?: ThreatIntelPort[];
+  readonly threatIntelTimeoutMs?: number;
 }
 
 export class SafeCheckEngine {
   private readonly registry: DetectorRegistry;
   private readonly engineVersion: string;
-  private readonly defaultTimeoutMs: number;
+  private defaultTimeoutMs: number;
+  private threatIntelProviders: ThreatIntelPort[];
+  private threatIntelTimeoutMs: number;
 
   constructor(config: EngineConfig) {
     this.registry = config.registry;
     this.engineVersion = config.engineVersion || '0.1.0';
     this.defaultTimeoutMs = config.defaultTimeoutMs || 30000;
+    this.threatIntelProviders = config.threatIntelProviders || [];
+    this.threatIntelTimeoutMs = config.threatIntelTimeoutMs || 2000;
   }
 
   /**
@@ -98,6 +106,80 @@ export class SafeCheckEngine {
           diagnostics[detector.id] = sanitizeDiagnostics(result.reason);
         }
       });
+
+      // 5.5. Threat Intelligence Integration
+      if (options.enableThreatIntel && this.threatIntelProviders.length > 0) {
+        let indicatorValue: string | null = null;
+        let indicatorType: IndicatorCategory | null = null;
+
+        if (validatedInput.type === 'url') {
+          indicatorValue = validatedInput.value;
+          indicatorType = 'URL';
+        } else if (validatedInput.type === 'domain') {
+          indicatorValue = validatedInput.value;
+          indicatorType = 'DOMAIN';
+        }
+
+        if (indicatorValue && indicatorType) {
+          const tiAbort = new AbortController();
+          const tiTimeoutId = setTimeout(() => tiAbort.abort(new Error('TimeoutError')), this.threatIntelTimeoutMs);
+          
+          const parentHandler = () => tiAbort.abort(context.signal.reason);
+          context.signal.addEventListener('abort', parentHandler);
+
+          try {
+            const lookups = this.threatIntelProviders.map(async (provider) => {
+              if (options.privacyMode === 'strict' && provider.requiresRawInput) {
+                return null;
+              }
+              if (!provider.supportedTypes.includes(indicatorType!)) {
+                return null;
+              }
+              if (options.privacyMode === 'local') {
+                return null;
+              }
+
+              try {
+                return await provider.lookup(indicatorValue!, indicatorType!, { signal: tiAbort.signal });
+              } catch (e: unknown) {
+                diagnostics[`ti-${provider.id}`] = sanitizeDiagnostics(e);
+                return null;
+              }
+            });
+
+            const results = await Promise.allSettled(lookups);
+            const validResults = results
+              .map(r => r.status === 'fulfilled' ? r.value : null)
+              .filter(r => r !== null && r.status === 'MATCH');
+
+            // Deterministic ordering
+            validResults.sort((a, b) => a!.providerId.localeCompare(b!.providerId));
+
+            for (const res of validResults) {
+              collectedEvidence.push({
+                id: `ti-${res!.providerId}-${Date.now()}`,
+                detectorId: `threat-intel-${res!.providerId}`,
+                type: 'external_intelligence',
+                category: res!.classification || 'malicious',
+                severity: 'CRITICAL',
+                confidence: res!.reliability,
+                title: `${res!.providerId} matched indicator`,
+                explanation: `Indicator was flagged as ${res!.classification || 'malicious'} by ${res!.providerId}.`,
+                source: {
+                  name: res!.providerId,
+                  type: 'threat_intelligence'
+                },
+                metadata: {
+                  ...res!.metadata
+                }
+              });
+            }
+          } finally {
+            clearTimeout(tiTimeoutId);
+            context.signal.removeEventListener('abort', parentHandler);
+          }
+        }
+      }
 
       // 6. Aggregate
       const aggregatedEvidence = aggregateEvidence(collectedEvidence);

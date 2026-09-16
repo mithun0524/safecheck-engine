@@ -137,20 +137,33 @@ describe('RiskCalculator', () => {
   });
 
   describe('Correlations', () => {
-    it('applies +10 bonus for urgency + credential-request (CORR-001)', () => {
-      // urgency: sev 1 * conf 1.0 * weight 0.25 = 0.25
-      // credential: sev 3 * conf 1.0 * weight 0.80 = 2.40
-      // Base raw score = 2.65
+    it('applies +10 bonus for urgency + credential-request (CORR-001) as final score addition', () => {
+      // urgency: sev 2 (MEDIUM) * conf 0.9 * weight 0.25 * 25 = 11.25
+      // credential: sev 3 (HIGH) * conf 0.9 * weight 0.80 * 25 = 54
+      // Base score = 65.25
       // Correlation CORR-001 = +10
-      // Total raw score = 12.65. Score = 12.65 * 25 = 316.25 -> 100
-      const ev1 = createEvidence('e1', 'text.urgency', 'LOW', 1.0);
-      const ev2 = createEvidence('e2', 'text.credential-request', 'HIGH', 1.0);
+      // Total score = 75.25 -> rounded to 75 (HIGH)
+      const ev1 = createEvidence('e1', 'text.urgency', 'MEDIUM', 0.9);
+      const ev2 = createEvidence('e2', 'text.credential-request', 'HIGH', 0.9);
       
       const result = calculator.calculate({ evidence: [ev1, ev2] });
       
       expect(result.risk.status).toBe('DETERMINED');
       if (result.risk.status === 'DETERMINED') {
-        expect(result.risk.score).toBe(100); // capped
+        expect(result.risk.score).toBe(75);
+        expect(result.risk.level).toBe('HIGH');
+      }
+    });
+
+    it('adds bonuses properly and caps at 100', () => {
+      // urgency (sev 4 * 1.0 * 0.25 * 25 = 25)
+      // credential (sev 4 * 1.0 * 0.80 * 25 = 80)
+      // Base = 105. CORR-001 = +10. Total = 115 -> 100.
+      const ev1 = createEvidence('e1', 'text.urgency', 'CRITICAL', 1.0);
+      const ev2 = createEvidence('e2', 'text.credential-request', 'CRITICAL', 1.0);
+      const result = calculator.calculate({ evidence: [ev1, ev2] });
+      if (result.risk.status === 'DETERMINED') {
+        expect(result.risk.score).toBe(100);
       }
     });
   });

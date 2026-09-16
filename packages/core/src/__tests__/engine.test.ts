@@ -1,7 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { SafeCheckEngine } from '../engine.js';
 import { DetectorRegistry } from '../registry.js';
-import { AnalysisInput } from '@safecheck/schemas';
+import {
+  AnalysisInput,
+  AnalysisOptions,
+  IndicatorCategory
+} from '@safecheck/schemas';
 import {
   SuccessDetector,
   ThrowingDetector,
@@ -10,6 +14,7 @@ import {
   InvalidOutputDetector,
   DuplicateEvidenceDetector
 } from './test-detectors.js';
+import { ThreatIntelPort } from '../ports/threat-intel.js';
 
 describe('SafeCheckEngine', () => {
   let registry: DetectorRegistry;
@@ -93,5 +98,75 @@ describe('SafeCheckEngine', () => {
   it('prevents duplicate detector registration', () => {
     registry.register(new SuccessDetector());
     expect(() => registry.register(new SuccessDetector())).toThrowError(/already registered/);
+  });
+
+  describe('Threat Intelligence Integration', () => {
+    let mockProvider: ThreatIntelPort;
+
+    beforeEach(() => {
+      mockProvider = {
+        id: 'mockti',
+        name: 'Mock TI',
+        supportedTypes: ['URL'] as IndicatorCategory[],
+        requiresRawInput: true,
+        lookup: vi.fn().mockResolvedValue({
+          providerId: 'mockti',
+          indicator: 'http://bad.com',
+          status: 'MATCH',
+          classification: 'phishing',
+          reliability: 0.8,
+          metadata: {}
+        })
+      };
+    });
+
+    it('injects threat intel evidence when matched', async () => {
+      const engineWithTI = new SafeCheckEngine({ registry, threatIntelProviders: [mockProvider] });
+      const input: AnalysisInput = { type: 'url', value: 'http://bad.com' };
+      const options: AnalysisOptions = {
+        enableAi: false,
+        enableThreatIntel: true,
+        enableLanguageDetection: false,
+        privacyMode: 'standard',
+      };
+
+      const result = await engineWithTI.analyze('test-ti', input, options);
+      
+      const tiEvidence = result.evidence.find(e => e.type === 'external_intelligence');
+      expect(tiEvidence).toBeDefined();
+      expect(tiEvidence?.severity).toBe('CRITICAL');
+      expect(tiEvidence?.confidence).toBe(0.8);
+      expect(tiEvidence?.detectorId).toBe('threat-intel-mockti');
+    });
+
+    it('bypasses provider requiring raw input in strict mode', async () => {
+      const engineWithTI = new SafeCheckEngine({ registry, threatIntelProviders: [mockProvider] });
+      const input: AnalysisInput = { type: 'url', value: 'http://bad.com' };
+      const options: AnalysisOptions = {
+        enableAi: false,
+        enableThreatIntel: true,
+        enableLanguageDetection: false,
+        privacyMode: 'strict',
+      };
+
+      const result = await engineWithTI.analyze('test-ti', input, options);
+      const tiEvidence = result.evidence.find(e => e.type === 'external_intelligence');
+      expect(tiEvidence).toBeUndefined();
+    });
+
+    it('completely skips ti when local mode is set', async () => {
+      const engineWithTI = new SafeCheckEngine({ registry, threatIntelProviders: [mockProvider] });
+      const input: AnalysisInput = { type: 'url', value: 'http://bad.com' };
+      const options: AnalysisOptions = {
+        enableAi: false,
+        enableThreatIntel: true,
+        enableLanguageDetection: false,
+        privacyMode: 'local',
+      };
+
+      const result = await engineWithTI.analyze('test-ti', input, options);
+      const tiEvidence = result.evidence.find(e => e.type === 'external_intelligence');
+      expect(tiEvidence).toBeUndefined();
+    });
   });
 });

@@ -44,27 +44,28 @@ export class RiskCalculator {
     }
 
     // 2. Base Risk Formula
-    let rawScore = 0;
+    let baseScore = 0;
     const evidenceDetectorIds = new Set<string>();
 
     for (const ev of evidence) {
       const weight = getEvidenceWeight(ev.detectorId);
       const severityNum = getSeverityNumeric(ev.severity);
-      const contribution = severityNum * ev.confidence * weight;
-      rawScore += contribution;
+      const baseContribution = severityNum * ev.confidence * weight * 25;
+      baseScore += baseContribution;
       evidenceDetectorIds.add(ev.detectorId);
     }
 
     // 3. Correlations
     const correlations = calculateCorrelations(evidence);
+    let correlationBonus = 0;
     for (const corr of correlations) {
-      rawScore += corr.bonus;
+      correlationBonus += corr.bonus;
     }
 
     // Contradictions are deferred in Sprint 4.
 
-    // 4. Linear Normalization: clamp(round(rawScore * 25), 0, 100)
-    const riskScore = Math.max(0, Math.min(100, Math.round(rawScore * 25)));
+    // 4. Final Score: clamp(round(baseScore + correlationBonus), 0, 100)
+    const riskScore = Math.max(0, Math.min(100, Math.round(baseScore + correlationBonus)));
 
     // 5. Risk Levels
     let level: 'LOW' | 'SUSPICIOUS' | 'HIGH' | 'CRITICAL' = 'LOW';

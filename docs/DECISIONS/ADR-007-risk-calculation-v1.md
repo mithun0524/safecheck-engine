@@ -18,12 +18,12 @@ Evidence severity maps strictly to numeric multipliers:
 
 ### 2. Base Risk Formula & Linear Normalization
 For each deduplicated evidence item:
-`contribution = severityNumeric × detectorConfidence × evidenceWeight`
+`baseContribution = severityNumeric × detectorConfidence × evidenceWeight × 25`
 
-`rawScore = Σ(contribution) + correlationBonuses`
+`baseScore = Σ(baseContribution)`
 
 We use transparent linear normalization (no logarithmic/asymptotic curves):
-`riskScore = clamp(round(rawScore × 25), 0, 100)`
+`riskScore = clamp(round(baseScore + correlationBonuses), 0, 100)`
 
 ### 3. Confidence Formula
 Risk confidence is the straightforward average of detector confidences over the final usable, deduplicated evidence set:
@@ -56,6 +56,8 @@ Only explicitly defined correlations apply bonuses. Sprint 4 includes:
 - CORR-002: urgency + payment-request (+8)
 - CORR-003: fear-threat + credential-request (+12)
 - CORR-004: reward-lure + payment-request (+10)
+
+Correlation bonuses are final 0–100 score contributions, added directly to the base score.
 
 ### 7. Contradiction Deferral
 Contradiction mathematics are explicitly deferred for Sprint 4. The internal contradiction adjustment value is hardcoded to `0` pending a future ADR.
