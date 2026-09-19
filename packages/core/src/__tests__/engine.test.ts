@@ -15,6 +15,7 @@ import {
   DuplicateEvidenceDetector
 } from './test-detectors.js';
 import { ThreatIntelPort } from '../ports/threat-intel.js';
+import { MockAiProvider } from './mock-ai.js';
 
 describe('SafeCheckEngine', () => {
   let registry: DetectorRegistry;
@@ -167,6 +168,165 @@ describe('SafeCheckEngine', () => {
       const result = await engineWithTI.analyze('test-ti', input, options);
       const tiEvidence = result.evidence.find(e => e.type === 'external_intelligence');
       expect(tiEvidence).toBeUndefined();
+    });
+  });
+
+  describe('AI Evidence Orchestration', () => {
+    it('executes AI providers when enabled and maps observations to INFO evidence', async () => {
+      const mockAi = new MockAiProvider();
+      mockAi.mockResult = {
+        observations: [{
+          category: 'semantics',
+          description: 'AI test observation',
+          confidence: 0.8
+        }]
+      };
+
+      const engine = new SafeCheckEngine({ 
+        registry: new DetectorRegistry(),
+        aiProviders: [mockAi]
+      });
+
+      const result = await engine.analyze('test-1', { type: 'text', value: 'hello' }, { 
+        enableThreatIntel: false,
+        enableAi: true,
+        enableLanguageDetection: false,
+        privacyMode: 'standard'
+      } as any);
+
+      expect(mockAi.callCount).toBe(1);
+      expect(result.evidence.length).toBe(1);
+      
+      const aiEvidence = result.evidence[0]!;
+      expect(aiEvidence.detectorId).toBe('ai.observation');
+      expect(aiEvidence.severity).toBe('INFO');
+      expect(aiEvidence.explanation).toBe('AI test observation');
+      expect(aiEvidence.metadata?.aiCategory).toBe('semantics');
+    });
+
+    it('skips non-local AI providers when privacyMode is local', async () => {
+      const mockAiCloud = new MockAiProvider({ isLocal: false });
+      const mockAiLocal = new MockAiProvider({ isLocal: true });
+      mockAiLocal.mockResult = {
+        observations: [{
+          category: 'semantics',
+          description: 'Local AI'
+        }]
+      };
+
+      const engine = new SafeCheckEngine({
+        registry: new DetectorRegistry(),
+        aiProviders: [mockAiCloud, mockAiLocal]
+      });
+
+      const result = await engine.analyze('test-ai-local', { type: 'text', value: 'test' }, { 
+        enableThreatIntel: false, 
+        enableAi: true,
+        enableLanguageDetection: false,
+        privacyMode: 'local'
+      } as any);
+
+      expect(mockAiCloud.callCount).toBe(0);
+      expect(mockAiLocal.callCount).toBe(1);
+      expect(result.evidence.length).toBe(1);
+      expect(result.evidence[0]!.explanation).toBe('Local AI');
+    });
+
+    it('skips requiresRawInput AI providers when privacyMode is strict', async () => {
+      const mockAiRaw = new MockAiProvider({ requiresRawInput: true });
+      const mockAiSafe = new MockAiProvider({ requiresRawInput: false });
+      mockAiSafe.mockResult = {
+        observations: [{
+          category: 'unknown',
+          description: 'Safe AI'
+        }]
+      };
+
+      const engine = new SafeCheckEngine({
+        registry: new DetectorRegistry(),
+        aiProviders: [mockAiRaw, mockAiSafe]
+      });
+
+      const result = await engine.analyze('test-ai-strict', { type: 'text', value: 'test' }, { 
+        enableThreatIntel: false, 
+        enableAi: true,
+        enableLanguageDetection: false,
+        privacyMode: 'strict'
+      } as any);
+
+      expect(mockAiRaw.callCount).toBe(0);
+      expect(mockAiSafe.callCount).toBe(1);
+      expect(result.evidence.length).toBe(1);
+      expect(result.evidence[0]!.explanation).toBe('Safe AI');
+    });
+
+    it('gracefully handles malformed Zod output without crashing', async () => {
+      const mockAi = new MockAiProvider();
+      // Inject malformed data that fails Zod validation
+      mockAi.mockResult = {
+        observations: [{
+          category: 'invalid_category_here',
+          description: 12345, // invalid type
+          riskScore: 100 // malicious injection attempt
+        }]
+      };
+
+      const engine = new SafeCheckEngine({
+        registry: new DetectorRegistry(),
+        aiProviders: [mockAi]
+      });
+
+      const result = await engine.analyze('test-ai-malformed', { type: 'text', value: 'test' }, { 
+        enableThreatIntel: false, 
+        enableAi: true,
+        enableLanguageDetection: false,
+        privacyMode: 'standard'
+      } as any);
+
+      expect(mockAi.callCount).toBe(1);
+      // Malformed result should be caught and yield 0 evidence
+      expect(result.evidence.length).toBe(0);
+    });
+
+    it('recovers from AI provider errors without crashing', async () => {
+      const mockAi = new MockAiProvider();
+      mockAi.mockError = new Error('AI failed');
+
+      const engine = new SafeCheckEngine({
+        registry: new DetectorRegistry(),
+        aiProviders: [mockAi]
+      });
+
+      const result = await engine.analyze('test-ai-error', { type: 'text', value: 'test' }, { 
+        enableThreatIntel: false, 
+        enableAi: true,
+        enableLanguageDetection: false,
+        privacyMode: 'standard'
+      } as any);
+
+      expect(mockAi.callCount).toBe(1);
+      expect(result.evidence.length).toBe(0);
+    });
+
+    it('aborts AI execution on timeout', async () => {
+      const mockAi = new MockAiProvider();
+      mockAi.mockDelayMs = 1000; // Will timeout before this
+
+      const engine = new SafeCheckEngine({
+        registry: new DetectorRegistry(),
+        aiProviders: [mockAi],
+        aiTimeoutMs: 50
+      });
+
+      const result = await engine.analyze('test-ai-timeout', { type: 'text', value: 'test' }, { 
+        enableThreatIntel: false, 
+        enableAi: true,
+        enableLanguageDetection: false,
+        privacyMode: 'standard'
+      } as any);
+
+      expect(mockAi.callCount).toBe(1);
+      expect(result.evidence.length).toBe(0);
     });
   });
 });

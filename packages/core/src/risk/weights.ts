@@ -16,7 +16,12 @@ export const EVIDENCE_WEIGHTS: Record<string, number> = {
   'text.secrecy': 0.10, // Mapped to generic suspicious wording
   'text.job-scam-pattern': 0.55, // Mapped to payment request/advance fee level
 
-  // URL/Domain (For future use)
+  // URL/Domain (Sprint 6 & Future use)
+  'url.ip-address': 0.80,
+  'url.punycode': 0.60,
+  'url.unusual-port': 0.20,
+  'url.obfuscation': 0.70,
+  'url.suspicious-path': 0.30,
   'brand-domain-mismatch': 0.80,
   'malicious-redirect': 0.85,
   'lookalike-domain': 0.70,

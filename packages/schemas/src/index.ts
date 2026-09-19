@@ -9,3 +9,4 @@ export * from './risk.js';
 export * from './recommendation.js';
 export * from './detector-result.js';
 export * from './result.js';
+export * from './ai-observation.js';

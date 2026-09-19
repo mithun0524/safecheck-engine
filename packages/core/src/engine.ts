@@ -6,7 +6,8 @@ import {
   Evidence, 
   Indicator,
   DetectorResultSchema,
-  IndicatorCategory
+  IndicatorCategory,
+  AiObservationResultSchema
 } from '@safecheck/schemas';
 import { DetectorRegistry } from './registry.js';
 import { AnalysisContext } from './context.js';
@@ -15,6 +16,7 @@ import { aggregateIndicators } from './aggregation/indicators.js';
 import { sanitizeDiagnostics, EngineTimeoutError } from './errors.js';
 import { RiskCalculator } from './risk/calculator.js';
 import { ThreatIntelPort } from './ports/threat-intel.js';
+import { AiEvidenceProvider } from './ports/ai-evidence.js';
 
 export interface EngineConfig {
   readonly registry: DetectorRegistry;
@@ -22,6 +24,8 @@ export interface EngineConfig {
   readonly defaultTimeoutMs?: number;
   readonly threatIntelProviders?: ThreatIntelPort[];
   readonly threatIntelTimeoutMs?: number;
+  readonly aiProviders?: AiEvidenceProvider[];
+  readonly aiTimeoutMs?: number;
 }
 
 export class SafeCheckEngine {
@@ -30,6 +34,8 @@ export class SafeCheckEngine {
   private defaultTimeoutMs: number;
   private threatIntelProviders: ThreatIntelPort[];
   private threatIntelTimeoutMs: number;
+  private aiProviders: AiEvidenceProvider[];
+  private aiTimeoutMs: number;
 
   constructor(config: EngineConfig) {
     this.registry = config.registry;
@@ -37,6 +43,8 @@ export class SafeCheckEngine {
     this.defaultTimeoutMs = config.defaultTimeoutMs || 30000;
     this.threatIntelProviders = config.threatIntelProviders || [];
     this.threatIntelTimeoutMs = config.threatIntelTimeoutMs || 2000;
+    this.aiProviders = config.aiProviders || [];
+    this.aiTimeoutMs = config.aiTimeoutMs || 10000;
   }
 
   /**
@@ -178,6 +186,73 @@ export class SafeCheckEngine {
             clearTimeout(tiTimeoutId);
             context.signal.removeEventListener('abort', parentHandler);
           }
+        }
+      }
+
+      // 5.6. AI Evidence Generation
+      if (options.enableAi && this.aiProviders.length > 0) {
+        const aiAbort = new AbortController();
+        const aiTimeoutId = setTimeout(() => aiAbort.abort(new Error('TimeoutError')), this.aiTimeoutMs);
+        
+        const parentHandler = () => aiAbort.abort(context.signal.reason);
+        context.signal.addEventListener('abort', parentHandler);
+
+        try {
+          const aiContext = {
+            signal: aiAbort.signal,
+            options,
+          };
+
+          const aiLookups = this.aiProviders.map(async (provider) => {
+            if (options.privacyMode === 'strict' && provider.requiresRawInput) {
+              return null; // Strict mode blocks providers that require raw input
+            }
+            if (options.privacyMode === 'local' && !provider.isLocal) {
+              return null; // Local mode blocks non-local AI
+            }
+
+            try {
+              const rawResult = await provider.analyze(validatedInput, aiContext);
+              // Strict Zod validation of AI output
+              return AiObservationResultSchema.parse(rawResult);
+            } catch (e: unknown) {
+              diagnostics[`ai-${provider.id}`] = sanitizeDiagnostics(e);
+              return null;
+            }
+          });
+
+          const aiResults = await Promise.allSettled(aiLookups);
+          
+          aiResults.forEach((result, index) => {
+            const provider = this.aiProviders[index]!;
+            if (result.status === 'fulfilled' && result.value) {
+              // Trusted Mapping: Map AiObservations to SafeCheck Evidence
+              for (const obs of result.value.observations) {
+                collectedEvidence.push({
+                  id: `ai-${provider.id}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+                  detectorId: 'ai.observation', // Strict mapping, AI cannot control this
+                  type: 'inference',
+                  category: obs.category === 'unknown' ? 'suspicious' : 'scam', // Generic safe category mapping
+                  severity: 'INFO', // AI never dictates severity directly in Sprint 7
+                  confidence: obs.confidence ?? 0.5,
+                  title: `AI Observation: ${obs.category}`,
+                  explanation: obs.description,
+                  source: {
+                    name: provider.id,
+                    type: 'llm'
+                  },
+                  metadata: {
+                    aiCategory: obs.category
+                  }
+                });
+              }
+            } else if (result.status === 'rejected') {
+               diagnostics[`ai-${provider.id}-rejected`] = sanitizeDiagnostics(result.reason);
+            }
+          });
+        } finally {
+          clearTimeout(aiTimeoutId);
+          context.signal.removeEventListener('abort', parentHandler);
         }
       }
 

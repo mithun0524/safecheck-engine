@@ -4,6 +4,7 @@ export * from './detector.js';
 export * from './registry.js';
 export * from './engine.js';
 export * from './ports/threat-intel.js';
+export * from './ports/ai-evidence.js';
 export * from './aggregation/evidence.js';
 export * from './aggregation/indicators.js';
 export * from './risk/weights.js';
